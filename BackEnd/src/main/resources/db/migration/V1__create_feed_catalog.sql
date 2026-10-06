@@ -3,6 +3,7 @@ CREATE TABLE feeds (
                        title VARCHAR(255) NOT NULL,
                        homepage_url VARCHAR(2048) NOT NULL,
                        feed_url VARCHAR(2048) NOT NULL,
+                       feed_url_hash CHAR(64) NOT NULL,
                        description TEXT NULL,
                        language VARCHAR(32) NULL,
                        active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -11,7 +12,7 @@ CREATE TABLE feeds (
                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                            ON UPDATE CURRENT_TIMESTAMP,
                        PRIMARY KEY (id),
-                       CONSTRAINT uk_feeds_feed_url UNIQUE (feed_url)
+                       CONSTRAINT uk_feeds_feed_url_hash UNIQUE (feed_url_hash)
 );
 
 CREATE TABLE tags (

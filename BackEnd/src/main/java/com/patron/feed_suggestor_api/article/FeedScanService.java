@@ -61,7 +61,7 @@ public class FeedScanService {
         this.articleRepository = articleRepository;
     }
 
-    /** Runs on a timer: first scan 10s after startup, then 30 min after each scan finishes. */
+
     @Scheduled(initialDelayString = "PT10S", fixedDelayString = "PT30M")
     public void scheduledScan() {
         if (scanning.compareAndSet(false, true)) {
@@ -69,7 +69,7 @@ public class FeedScanService {
         }
     }
 
-    /** Called by the endpoint. Returns immediately; the scan itself runs in the background. */
+
     public ScanRequestResult requestManualScan() {
         if (scanning.get()) {
             return new ScanRequestResult(Outcome.ALREADY_RUNNING, 0);

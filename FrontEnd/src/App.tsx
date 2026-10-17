@@ -1,29 +1,43 @@
 import { useState } from "react";
 import ArticleCard from "./components/ArticleCard.tsx";
 
-const placeholderArticles = [
-    {
-        id: "placeholder-1",
-        title: "Your first suggested article",
-        description:
-            "An article description or preview will appear here.",
-    },
-    {
-        id: "placeholder-2",
-        title: "Something worth exploring",
-        description:
-            "Each article will have its own reusable card component.",
-    },
-    {
-        id: "placeholder-3",
-        title: "Another interesting read",
-        description:
-            "Preview images and article links can be connected later.",
-    },
-];
+type Feed = {
+    id: number;
+    title: string;
+    description: string | null;
+    homepageUrl: string;
+    language: string | null;
+};
 
 export default function App() {
-    const [showPreviewNotice, setShowPreviewNotice] = useState(false);
+    const [feeds, setFeeds] = useState<Feed[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    async function loadFeeds() {
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await fetch("/api/feeds");
+            if (!response.ok) {
+                throw new Error(`Server responded with ${response.status}`);
+            }
+            const data: Feed[] = await response.json();
+            setFeeds(data);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Something went wrong");
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    const notice = error
+        ? `Couldn't load: ${error}`
+        : loading
+            ? "Loading..."
+            : feeds.length > 0
+                ? `Showing ${feeds.length} sources. Article fetching comes next.`
+                : "Discover something worth reading.";
 
     return (
         <main className="app-shell">
@@ -33,24 +47,24 @@ export default function App() {
                 <button
                     className="find-articles-button"
                     type="button"
-                    onClick={() => setShowPreviewNotice(true)}
+                    onClick={loadFeeds}
+                    disabled={loading}
                 >
                     Find articles to read
                 </button>
 
                 <p className="hero_notice" role="status">
-                    {showPreviewNotice
-                        ? "Layout preview only — article fetching is not connected yet."
-                        : "Discover something worth reading."}
+                    {notice}
                 </p>
             </header>
 
             <section className="article-grid" aria-label="Suggested articles">
-                {placeholderArticles.map((article) => (
+                {feeds.map((feed) => (
                     <ArticleCard
-                        key={article.id}
-                        title={article.title}
-                        description={article.description}
+                        key={feed.id}
+                        title={feed.title}
+                        description={feed.description}
+                        url={feed.homepageUrl}
                     />
                 ))}
             </section>

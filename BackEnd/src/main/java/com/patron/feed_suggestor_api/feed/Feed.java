@@ -103,4 +103,8 @@ public class Feed {
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
     }
+
+    public void markChecked(LocalDateTime when) {
+        this.lastCheckedAt = when;
+    }
 }

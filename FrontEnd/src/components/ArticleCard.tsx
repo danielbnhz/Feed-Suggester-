@@ -5,6 +5,18 @@ type ArticleCardProps = {
     url?: string | null;
 };
 
+const PREVIEW_MAX_CHARS = 40;
+
+function clampText(text: string, max: number): string {
+    if (text.length <= max) return text;
+    const cut = text.slice(0, max - 1);
+    const lastSpace = cut.lastIndexOf(" ");
+    // Prefer cutting at a word boundary, unless that would lose too much text.
+    const base = lastSpace > max * 0.5 ? cut.slice(0, lastSpace) : cut;
+    return base.trimEnd() + "…";
+}
+
+
 export default function ArticleCard({
                                         title,
                                         description,
@@ -30,7 +42,9 @@ export default function ArticleCard({
     <h2 className="article-card__title">{title}</h2>
 
         <p className="article-card__description">
-        {description || "No description available."}
+            {description
+                ? clampText(description, PREVIEW_MAX_CHARS)
+                : "No description available."}
     </p>
 
     {url ? (

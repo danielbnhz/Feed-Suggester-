@@ -35,6 +35,10 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 
 @Service
 public class FeedScanService {
@@ -44,6 +48,13 @@ public class FeedScanService {
     private static final Duration MANUAL_COOLDOWN = Duration.ofMinutes(2);
     private static final int MAX_ENTRIES_PER_FEED = 30;
     private static final int MAX_SUMMARY_LENGTH = 500;
+    private static final int MAX_PAGE_FETCHES_PER_SCAN = 100;
+    private final AtomicInteger pageFetchesThisScan = new AtomicInteger();
+
+    private static final Pattern OG_IMAGE = Pattern.compile(
+            "(?i)<meta[^>]+(?:property|name)=[\"']og:image[\"'][^>]+content=[\"']([^\"']+)[\"']"
+                    + "|<meta[^>]+content=[\"']([^\"']+)[\"'][^>]+(?:property|name)=[\"']og:image[\"']");
+
 
     public enum Outcome { STARTED, ALREADY_RUNNING, COOLING_DOWN }
 
@@ -65,6 +76,35 @@ public class FeedScanService {
         this.articleRepository = articleRepository;
     }
 
+    private String fetchOgImage(String pageUrl) {
+        try {
+            Thread.sleep(250);
+            HttpRequest req = HttpRequest.newBuilder(URI.create(pageUrl))
+                    .timeout(Duration.ofSeconds(8))
+                    .header("User-Agent", "FeedSuggester/0.1 (personal project)")
+                    .header("Accept", "text/html")
+                    .GET()
+                    .build();
+            HttpResponse<InputStream> res =
+                    httpClient.send(req, HttpResponse.BodyHandlers.ofInputStream());
+            if (res.statusCode() / 100 != 2) {
+                res.body().close();
+                return null;
+            }
+            try (InputStream in = res.body()) {
+                String head = new String(in.readNBytes(150_000), StandardCharsets.UTF_8);
+                Matcher m = OG_IMAGE.matcher(head);
+                if (m.find()) {
+                    String url = m.group(1) != null ? m.group(1) : m.group(2);
+                    url = url.replace("&amp;", "&");
+                    return url.startsWith("http") ? limit(url) : null;
+                }
+            }
+        } catch (Exception e) {
+            log.debug("og:image fetch failed for {}: {}", pageUrl, e.toString());
+        }
+        return null;
+    }
 
     @Scheduled(initialDelayString = "PT10S", fixedDelayString = "PT30M")
     public void scheduledScan() {
@@ -93,6 +133,7 @@ public class FeedScanService {
     }
 
     private void runScan() {
+        pageFetchesThisScan.set(0);
         try {
             List<Feed> feeds = feedRepository.findByActiveTrueOrderByTitleAsc();
             int total = 0;
@@ -156,15 +197,21 @@ public class FeedScanService {
         String hash = sha256(link);
         if (articleRepository.existsByUrlHash(hash)) return false;
 
+        String image = extractImageUrl(entry);
+        if (image == null && pageFetchesThisScan.incrementAndGet() <= MAX_PAGE_FETCHES_PER_SCAN) {
+            image = fetchOgImage(link);
+        }
+
         Article article = new Article(
                 feed,
                 truncate(title, 512),
                 link,
                 hash,
                 truncate(stripHtml(extractSummary(entry)), MAX_SUMMARY_LENGTH),
-                extractImageUrl(entry),
+                image,
                 extractDate(entry)
         );
+
         articleRepository.save(article);
         return true;
     }

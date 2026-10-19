@@ -12,7 +12,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-
+import com.rometools.modules.mediarss.MediaEntryModule;
+import com.rometools.modules.mediarss.MediaModule;
+import com.rometools.modules.mediarss.types.MediaContent;
+import com.rometools.modules.mediarss.types.Thumbnail;
+import com.rometools.modules.mediarss.types.UrlReference;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -175,17 +179,56 @@ public class FeedScanService {
         }
         return null;
     }
+    private static final java.util.regex.Pattern IMG_SRC =
+            java.util.regex.Pattern.compile("(?i)<img[^>]+src=[\"']([^\"']+)[\"']");
 
     private static String extractImageUrl(SyndEntry entry) {
+
+        com.rometools.rome.feed.module.Module module = entry.getModule(MediaModule.URI);
+        if (module instanceof MediaEntryModule media) {
+            if (media.getMetadata() != null) {
+                Thumbnail[] thumbs = media.getMetadata().getThumbnail();
+                if (thumbs != null && thumbs.length > 0 && thumbs[0].getUrl() != null) {
+                    return limit(thumbs[0].getUrl().toString());
+                }
+            }
+            for (MediaContent content : media.getMediaContents()) {
+                boolean isImage = "image".equalsIgnoreCase(content.getMedium())
+                        || (content.getType() != null && content.getType().startsWith("image/"));
+                if (isImage && content.getReference() instanceof UrlReference ref) {
+                    return limit(ref.getUrl().toString());
+                }
+                if (content.getMetadata() != null) {
+                    Thumbnail[] t = content.getMetadata().getThumbnail();
+                    if (t != null && t.length > 0 && t[0].getUrl() != null) {
+                        return limit(t[0].getUrl().toString());
+                    }
+                }
+            }
+        }
+
+
         for (SyndEnclosure enclosure : entry.getEnclosures()) {
             String type = enclosure.getType();
             if (type != null && type.startsWith("image/")) {
-                return enclosure.getUrl();
+                return limit(enclosure.getUrl());
+            }
+        }
+
+
+        String html = extractSummary(entry);
+        if (html != null) {
+            java.util.regex.Matcher m = IMG_SRC.matcher(html);
+            if (m.find() && m.group(1).startsWith("http")) {
+                return limit(m.group(1));
             }
         }
         return null;
     }
 
+    private static String limit(String url) {
+        return (url == null || url.length() > 2048) ? null : url;
+    }
     private static LocalDateTime extractDate(SyndEntry entry) {
         Date date = entry.getPublishedDate() != null ? entry.getPublishedDate() : entry.getUpdatedDate();
         return date == null ? null : LocalDateTime.ofInstant(date.toInstant(), ZoneOffset.UTC);

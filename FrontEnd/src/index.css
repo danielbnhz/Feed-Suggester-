@@ -3,8 +3,8 @@
   --primary-light: #f05507;
   --outline-light: #fffcfa;
 
-  --surface: #0d3975;
-  --surface-dark: #042354;
+  --surface: #0b2556;
+  --surface-dark: #061a40;
   --text-muted: #cad6e8;
 
   font-family: Arial, Helvetica, sans-serif;
@@ -42,16 +42,34 @@ button {
   text-align: center;
 }
 
+.hero_brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  max-width: 100%;
+  padding: 20px 28px;
+  border: 2px solid var(--outline-light);
+  background-color: var(--surface-dark);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.hero_logo {
+  display: block;
+  width: clamp(64px, 14vw, 104px);
+  height: auto;
+  aspect-ratio: 1;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35));
+}
+
 .hero_header {
   margin: 0;
-  padding: 24px 20px 12px;
-  border: 2px solid var(--outline-light);
   color: var(--primary-light);
   font-size: clamp(2rem, 6vw, 3.5rem);
   font-weight: 900;
+  line-height: 1.1;
   overflow-wrap: anywhere;
-
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
 }
 
@@ -160,3 +178,4 @@ button {
   color: var(--text-muted);
   font-size: 0.9rem;
 }
+

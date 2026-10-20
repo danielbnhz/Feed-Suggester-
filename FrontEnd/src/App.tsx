@@ -48,14 +48,12 @@ export default function App() {
         setFeeds(await response.json());
     }, []);
 
-    // Show whatever is already saved when the page opens.
     useEffect(() => {
         loadArticles().catch((e) =>
             setNotice(`Couldn't load articles: ${e instanceof Error ? e.message : "unknown error"}`)
         );
     }, [loadArticles]);
 
-    // Load sources the first time that tab is opened.
     useEffect(() => {
         if (tab === "sources" && feeds.length === 0) {
             loadFeeds().catch(() => setNotice("Couldn't load sources."));
@@ -80,7 +78,6 @@ export default function App() {
                 throw new Error(`Server responded with ${response.status}`);
             }
 
-            // The scan runs in the background, so refresh a few times while it works.
             for (let i = 0; i < POLL_ATTEMPTS; i++) {
                 await sleep(POLL_INTERVAL_MS);
                 await loadArticles();
@@ -96,7 +93,17 @@ export default function App() {
     return (
         <main className="app-shell">
             <header className="hero">
-                <h1 className="hero_header">Feed-Suggester</h1>
+                <div className="hero_brand">
+                    <img
+                        className="hero_logo"
+                        src="/hero.webp"
+                        alt=""
+                        width={104}
+                        height={104}
+                        decoding="async"
+                    />
+                    <h1 className="hero_header">Feed-Suggester</h1>
+                </div>
 
                 <button
                     className="find-articles-button"

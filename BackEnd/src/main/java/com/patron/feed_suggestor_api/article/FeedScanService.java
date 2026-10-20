@@ -51,10 +51,15 @@ public class FeedScanService {
     private static final int MAX_PAGE_FETCHES_PER_SCAN = 100;
     private final AtomicInteger pageFetchesThisScan = new AtomicInteger();
 
-    private static final Pattern OG_IMAGE = Pattern.compile(
-            "(?i)<meta[^>]+(?:property|name)=[\"']og:image[\"'][^>]+content=[\"']([^\"']+)[\"']"
-                    + "|<meta[^>]+content=[\"']([^\"']+)[\"'][^>]+(?:property|name)=[\"']og:image[\"']");
+    private static final Pattern IMG_TAG = Pattern.compile("(?i)<img\\b[^>]*>");
+    private static final Pattern SRC_ATTR = Pattern.compile("(?i)\\bsrc=[\"']([^\"']+)[\"']");
+    private static final Pattern LAZY_SRC = Pattern.compile("(?i)\\bdata-(?:lazy-)?src=[\"']([^\"']+)[\"']");
+    private static final Pattern SIZE_ONE = Pattern.compile("(?i)\\b(?:width|height)\\s*=\\s*[\"']?1[\"']?(?![0-9])");
+    private static final Pattern JUNK_IMAGE = Pattern.compile("(?i)(pixel|tracking|spacer|1x1|gravatar|emoji|feedburner|doubleclick)");
 
+    private static final Pattern OG_IMAGE = Pattern.compile(
+            "(?i)<meta[^>]+(?:property|name)=[\"'](?:og:image(?::secure_url)?|twitter:image(?::src)?)[\"'][^>]*content=[\"']([^\"']+)[\"']"
+                    + "|<meta[^>]+content=[\"']([^\"']+)[\"'][^>]*(?:property|name)=[\"'](?:og:image(?::secure_url)?|twitter:image(?::src)?)[\"']");
 
     public enum Outcome { STARTED, ALREADY_RUNNING, COOLING_DOWN }
 
@@ -76,7 +81,47 @@ public class FeedScanService {
         this.articleRepository = articleRepository;
     }
 
-    private String fetchOgImage(String pageUrl) {
+    boolean isScanning() {
+        return scanning.get();
+    }
+
+    private static String absolutize(String base, String url) {
+        if (url == null || url.isBlank()) return null;
+        try {
+            String abs = URI.create(base.trim()).resolve(url.trim().replace(" ", "%20")).toString();
+            return abs.startsWith("http") ? limit(abs) : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String allHtml(SyndEntry entry) {
+        StringBuilder sb = new StringBuilder();
+        SyndContent d = entry.getDescription();
+        if (d != null && d.getValue() != null) sb.append(d.getValue());
+        for (SyndContent c : entry.getContents()) {
+            if (c.getValue() != null) sb.append(c.getValue());
+        }
+        return sb.toString();
+    }
+
+    private static String firstGoodImage(String html, String baseUrl) {
+        if (html == null || html.isEmpty()) return null;
+        Matcher tags = IMG_TAG.matcher(html);
+        while (tags.find()) {
+            String tag = tags.group();
+            if (SIZE_ONE.matcher(tag).find()) continue;          // 1px tracking images
+            Matcher lazy = LAZY_SRC.matcher(tag);
+            Matcher src = SRC_ATTR.matcher(tag);
+            String raw = lazy.find() ? lazy.group(1) : (src.find() ? src.group(1) : null);
+            String abs = absolutize(baseUrl, raw == null ? null : raw.replace("&amp;", "&"));
+            if (abs == null || JUNK_IMAGE.matcher(abs).find()) continue;
+            return abs;
+        }
+        return null;
+    }
+
+    public String fetchOgImage(String pageUrl) {
         try {
             Thread.sleep(250);
             HttpRequest req = HttpRequest.newBuilder(URI.create(pageUrl))
@@ -95,9 +140,8 @@ public class FeedScanService {
                 String head = new String(in.readNBytes(150_000), StandardCharsets.UTF_8);
                 Matcher m = OG_IMAGE.matcher(head);
                 if (m.find()) {
-                    String url = m.group(1) != null ? m.group(1) : m.group(2);
-                    url = url.replace("&amp;", "&");
-                    return url.startsWith("http") ? limit(url) : null;
+                    String raw = m.group(1) != null ? m.group(1) : m.group(2);
+                    return absolutize(pageUrl, raw.replace("&amp;", "&"));
                 }
             }
         } catch (Exception e) {
@@ -226,8 +270,6 @@ public class FeedScanService {
         }
         return null;
     }
-    private static final java.util.regex.Pattern IMG_SRC =
-            java.util.regex.Pattern.compile("(?i)<img[^>]+src=[\"']([^\"']+)[\"']");
 
     private static String extractImageUrl(SyndEntry entry) {
 
@@ -262,20 +304,13 @@ public class FeedScanService {
             }
         }
 
-
-        String html = extractSummary(entry);
-        if (html != null) {
-            java.util.regex.Matcher m = IMG_SRC.matcher(html);
-            if (m.find() && m.group(1).startsWith("http")) {
-                return limit(m.group(1));
-            }
-        }
-        return null;
+        return firstGoodImage(allHtml(entry), entry.getLink());
     }
 
     private static String limit(String url) {
         return (url == null || url.length() > 2048) ? null : url;
     }
+
     private static LocalDateTime extractDate(SyndEntry entry) {
         Date date = entry.getPublishedDate() != null ? entry.getPublishedDate() : entry.getUpdatedDate();
         return date == null ? null : LocalDateTime.ofInstant(date.toInstant(), ZoneOffset.UTC);

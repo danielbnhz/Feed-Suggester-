@@ -37,6 +37,12 @@ public class Article {
     @Column(name = "fetched_at", insertable = false, updatable = false)
     private LocalDateTime fetchedAt;
 
+
+    @Column(name = "image_checked_at")
+    private LocalDateTime imageCheckedAt;
+
+    public LocalDateTime getImageCheckedAt() { return imageCheckedAt; }
+
     protected Article() {
     }
 

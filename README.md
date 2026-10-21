@@ -1,114 +1,82 @@
 # Feed-Suggester
 
-A personal web app for discovering things worth reading. It pulls articles from a curated catalog of RSS/Atom feeds, stores them, and shows them as a browsable grid of cards. A "Find articles to read" button triggers a fresh scan on demand, and a Sources tab lists every feed in the catalog.
+A personal reading tool that pulls articles from RSS feeds across tech, science, ideas, news, music, and games, then presents them in one clean, image-first feed. It's built to help me find things worth reading without depending on a recommendation algorithm I don't control.
 
-The long-term goal is personalized suggestions: a neural-net module that learns from what I actually click and read.
+**Stack:** TypeScript + React · Java + Spring Boot · PostgreSQL
 
-## Stack
+## Features
 
-| Layer | Technology |
-| --- | --- |
-| Frontend | React + TypeScript |
-| Backend | Spring Boot 4.1 (Java 21), Spring Data JPA, Gradle |
-| Feed parsing | [Rome](https://rometools.github.io/rome/) |
-| Database | PostgreSQL |
-| Migrations | Flyway (schema and seed feeds are applied automatically on startup) |
+- **One feed from many sources.** A seeded list of about 50 RSS/Atom feeds is scanned automatically, with new articles deduplicated by a SHA-256 hash of their URL.
+- **Scheduled and manual scans.** A background job scans every 30 minutes. A "Find articles to read" button triggers a scan on demand, with a 2-minute cooldown so it can't hammer other people's servers.
+- **Image extraction with fallbacks.** The scanner looks for an image in this order: Media RSS thumbnails and content, feed enclosures, the first usable `<img>` in the entry HTML (skipping tracking pixels), and finally the article page's own `og:image`. A separate backfill job retries articles that still have no image.
+- **Description cleanup.** Aggregator feeds like Hacker News send "Comments" as the description. The scanner treats very short or missing summaries as junk, falls back to the article page's meta description, and shows "No description available." if the page has none.
+- **Graceful empty states.** Articles with no image, or an image that fails to load, get a placeholder card instead of a broken-image icon.
+- **Sources tab.** An alphabetical table of every feed the app reads, with a link out to each source's site.
+- **Responsive layout.** The card grid adapts from one column on phones up to four on wide screens.
+- **Polite fetching.** The scanner identifies itself with a User-Agent, caps entries per feed, rate-limits page fetches per scan, and applies timeouts to every request.
 
-## How it works
+## Architecture
 
-- A scheduled job scans every active feed 10 seconds after startup and every 30 minutes afterward.
-- Each scan reads up to 30 entries per feed, strips HTML from titles and summaries, and keeps summaries to 500 characters.
-- Articles are deduplicated by a SHA-256 hash of their URL, so rescanning never creates duplicates.
-- A manual scan (the button in the UI) runs in the background and has a 2-minute cooldown. The frontend polls for new articles while the scan runs.
-- Feeds that fail to load are logged and skipped; one broken feed never stops a scan.
+```
+React + TypeScript (browser)
+        │  fetch /api/...
+        ▼
+Spring Boot REST API ──► scheduled scan ──► RSS/Atom feeds (Rome)
+        │                      │
+        │                      └─► article pages (og:image, meta description)
+        ▼
+PostgreSQL  (schema managed by Flyway)
+```
 
-## API
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/articles?limit=60` | Latest articles, newest first |
+| `POST /api/articles/scan` | Start a scan; returns `429` with `retryAfterSeconds` during the cooldown |
+| `GET /api/feeds` | List of configured sources |
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/api/articles?limit=50` | Latest articles, newest first (limit is clamped to 1-100) |
-| `POST` | `/api/articles/scan` | Starts a background scan. Returns `202` (`started` or `already_running`) or `429` with a `Retry-After` header during cooldown |
-| `GET` | `/api/feeds` | All active feeds |
+**Backend:** Java, Spring Boot, Gradle, JPA/Hibernate (schema validated, not auto-generated), Flyway migrations, [Rome](https://rometools.github.io/rome/) for RSS/Atom parsing with the Media RSS module.
+
+**Frontend:** React with TypeScript, plain CSS with theme variables.
 
 ## Running it locally
 
-### 1. Database
+**Prerequisites:** a JDK, Node.js with npm, and PostgreSQL.
 
-Install PostgreSQL, then create a role and database:
+1. **Create the database.**
 
-```sql
-CREATE USER feed_app WITH PASSWORD 'choose-a-password';
-CREATE DATABASE feed_suggestor OWNER feed_app;
-```
+   ```sql
+   CREATE ROLE feed_app WITH LOGIN PASSWORD 'choose-a-password';
+   CREATE DATABASE feed_suggestor OWNER feed_app;
+   ```
 
-### 2. Backend
+2. **Start the backend.** Set the password in your environment, then run the app from the backend directory. Flyway creates the tables and seeds the feeds on first start.
 
-From the folder containing `build.gradle`:
+   ```bash
+   export DB_PASSWORD=choose-a-password
+   ./gradlew bootRun
+   ```
 
-```powershell
-$env:DB_PASSWORD="choose-a-password"
-.\gradlew.bat bootRun
-```
+3. **Start the frontend.** From the frontend directory:
 
-On macOS or Linux:
+   ```bash
+   npm install
+   npm run dev
+   ```
 
-```bash
-DB_PASSWORD=choose-a-password ./gradlew bootRun
-```
+The first scan runs shortly after the server starts. Articles appear as feeds are processed, and you can press **Find articles to read** to scan again.
 
-On first start, Flyway creates the tables and loads the starter feed list. The API listens on port 8080.
+## Adding sources
 
-### 3. Frontend
-
-From the frontend folder:
-
-```bash
-npm install
-npm run dev
-```
-
-The frontend calls the API with relative paths (`/api/...`), so the dev server needs to proxy `/api` to `http://localhost:8080`.
-
-## Configuration
-
-| Setting | Where | Default |
-| --- | --- | --- |
-| Database URL | `spring.datasource.url` | `jdbc:postgresql://127.0.0.1:5432/feed_suggestor` |
-| Database user | `spring.datasource.username` | `feed_app` |
-| Database password | `DB_PASSWORD` environment variable | none (required) |
-| Server port | `server.port` | `8080` |
-
-Hibernate runs with `ddl-auto=validate`, so the database schema is owned entirely by the Flyway migrations in `src/main/resources/db/migration/`.
-
-## Adding a feed
-
-Add a new migration (for example `V3__add_feed.sql`) so the change is repeatable:
-
-```sql
-INSERT INTO feeds (title, homepage_url, feed_url, feed_url_hash, language)
-VALUES (
-  'Example Blog',
-  'https://example.com',
-  'https://example.com/feed.xml',
-  encode(sha256(convert_to('https://example.com/feed.xml', 'UTF8')), 'hex'),
-  'en'
-)
-ON CONFLICT (feed_url_hash) DO NOTHING;
-```
+Feeds live in the database, seeded through Flyway migrations. To add more, create a new migration that inserts into `feeds` (title, homepage URL, feed URL, and the SHA-256 hash of the feed URL). The `ON CONFLICT` clause in the existing seeds makes re-running them safe.
 
 ## Roadmap
 
-- [ ] Read `media:thumbnail` / `media:content` so more articles get preview images
-- [ ] Feed-level fallback images and generated placeholders
-- [ ] Record per-feed fetch status so dead feeds are easy to spot
-- [ ] Track clicks and reads
-- [ ] Neural-net module for personalized suggestions
-- [ ] Docker Compose setup for one-command deployment
+- **Preference engine.** Rank articles with a tag system and a lightweight learner that adapts to what I actually read, instead of a fixed order. The deployed app has to run on a free backend, so heavy ML stays out of the main app. Any heavier training would run separately and occasionally.
+- **Categories and topic feeds.** Group articles by topic, with a master feed plus specialized feeds.
+- **Retention cap.** Automatically delete old articles once storage reaches a size limit.
+- **Description backfill.** Retry missing descriptions for older articles, as the image backfill already does for images.
+- **Deployment.** Host it free for personal use behind a simple password.
 
-## Project layout
+## Status
 
-```
-Feed-Suggester-/
-├── BackEnd/      Spring Boot API (Gradle)
-└── <frontend>/   React + TypeScript app
-```
+Working end to end as a personal tool. The preference engine and categories are next.

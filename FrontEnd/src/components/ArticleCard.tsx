@@ -27,6 +27,9 @@ export default function ArticleCard({
                                     }: ArticleCardProps) {
     const [imageFailed, setImageFailed] = useState(false);
 
+    const hasDescription =
+        !!description && description.trim().toLowerCase() !== "comments";
+
     return (
         <article className="article-card">
             {imageUrl && !imageFailed ? (
@@ -50,8 +53,8 @@ export default function ArticleCard({
                 <h2 className="article-card__title">{title}</h2>
 
                 <p className="article-card__description">
-                    {description
-                        ? clampText(description, PREVIEW_MAX_CHARS)
+                    {hasDescription
+                        ? clampText(description!, PREVIEW_MAX_CHARS)
                         : "No description available."}
                 </p>
 

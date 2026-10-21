@@ -48,9 +48,14 @@ export default function ArticleCard({
     </p>
 
     {url ? (
-        <a className="article-card__link" href={url}>
-        Read article →
-          </a>
+        <a
+            className="article-card__link"
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            Read article →
+        </a>
     ) : (
         <span className="article-card__pending">
             Article link will appear here

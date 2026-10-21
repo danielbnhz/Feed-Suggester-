@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ArticleCard from "./components/ArticleCard.tsx";
 
 type Article = {
@@ -31,6 +31,11 @@ export default function App() {
     const [feeds, setFeeds] = useState<Feed[]>([]);
     const [scanning, setScanning] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
+
+    const sortedFeeds = useMemo(
+        () => [...feeds].sort((a, b) => a.title.localeCompare(b.title)),
+        [feeds]
+    );
 
     const loadArticles = useCallback(async () => {
         const response = await fetch("/api/articles?limit=60");
@@ -144,15 +149,36 @@ export default function App() {
                     ))}
                 </section>
             ) : (
-                <section className="article-grid" aria-label="Sources">
-                    {feeds.map((feed) => (
-                        <ArticleCard
-                            key={feed.id}
-                            title={feed.title}
-                            description={feed.description}
-                            url={feed.homepageUrl}
-                        />
-                    ))}
+                <section aria-label="Sources">
+                    {sortedFeeds.length > 0 && (
+                        <div className="source-table-wrapper">
+                            <table className="source-table">
+                                <thead>
+                                <tr>
+                                    <th scope="col">Source</th>
+                                    <th scope="col">Link</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {sortedFeeds.map((feed) => (
+                                    <tr key={feed.id}>
+                                        <td className="source-table__name">{feed.title}</td>
+                                        <td>
+                                            <a
+                                                className="source-table__link"
+                                                href={feed.homepageUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                Check source →
+                                            </a>
+                                        </td>
+                                    </tr>
+                                ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </section>
             )}
         </main>

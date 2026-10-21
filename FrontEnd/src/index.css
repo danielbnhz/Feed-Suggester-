@@ -179,3 +179,56 @@ button {
   font-size: 0.9rem;
 }
 
+.source-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--outline-light);
+  border-radius: 12px;
+  background-color: var(--surface);
+}
+
+.source-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.source-table th {
+  padding: 14px 20px;
+  border-bottom: 2px solid var(--primary-light);
+  background-color: var(--surface-dark);
+  color: var(--primary-light);
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.source-table td {
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255, 252, 250, 0.15);
+}
+
+.source-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.source-table tbody tr:hover {
+  background-color: var(--surface-dark);
+}
+
+.source-table__name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.source-table__link {
+  color: var(--primary-light);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  white-space: nowrap;
+}
+
+.source-table__link:focus-visible {
+  outline: 3px solid var(--outline-light);
+  outline-offset: 4px;
+}

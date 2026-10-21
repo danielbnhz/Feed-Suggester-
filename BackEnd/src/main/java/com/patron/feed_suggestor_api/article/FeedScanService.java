@@ -50,6 +50,14 @@ public class FeedScanService {
     private static final int MAX_SUMMARY_LENGTH = 500;
     private static final int MAX_PAGE_FETCHES_PER_SCAN = 100;
     private final AtomicInteger pageFetchesThisScan = new AtomicInteger();
+    private static final int MIN_USEFUL_SUMMARY_LENGTH = 20;
+
+    private static final Pattern META_TAG = Pattern.compile("(?is)<meta\\b[^>]*>");
+    private static final Pattern ATTR_NAME = metaAttr("name");
+    private static final Pattern ATTR_PROPERTY = metaAttr("property");
+    private static final Pattern ATTR_CONTENT = metaAttr("content");
+    private static final Pattern NUMERIC_ENTITY = Pattern.compile("(?i)&#(x[0-9a-f]+|[0-9]+);");
+
 
     private static final Pattern IMG_TAG = Pattern.compile("(?i)<img\\b[^>]*>");
     private static final Pattern SRC_ATTR = Pattern.compile("(?i)\\bsrc=[\"']([^\"']+)[\"']");
@@ -122,6 +130,10 @@ public class FeedScanService {
     }
 
     public String fetchOgImage(String pageUrl) {
+        return fetchPageMeta(pageUrl).image();
+    }
+
+    public PageMeta fetchPageMeta(String pageUrl) {
         try {
             Thread.sleep(250);
             HttpRequest req = HttpRequest.newBuilder(URI.create(pageUrl))
@@ -134,20 +146,54 @@ public class FeedScanService {
                     httpClient.send(req, HttpResponse.BodyHandlers.ofInputStream());
             if (res.statusCode() / 100 != 2) {
                 res.body().close();
-                return null;
+                return PageMeta.EMPTY;
             }
             try (InputStream in = res.body()) {
                 String head = new String(in.readNBytes(150_000), StandardCharsets.UTF_8);
+
+                String image = null;
                 Matcher m = OG_IMAGE.matcher(head);
                 if (m.find()) {
                     String raw = m.group(1) != null ? m.group(1) : m.group(2);
-                    return absolutize(pageUrl, raw.replace("&amp;", "&"));
+                    image = absolutize(pageUrl, raw.replace("&amp;", "&"));
                 }
+                return new PageMeta(image, metaDescription(head));
             }
         } catch (Exception e) {
-            log.debug("og:image fetch failed for {}: {}", pageUrl, e.toString());
+            log.debug("page fetch failed for {}: {}", pageUrl, e.toString());
         }
-        return null;
+        return PageMeta.EMPTY;
+    }
+
+    private static Pattern metaAttr(String attribute) {
+        return Pattern.compile(
+                "(?i)(?<![\\w-])" + attribute + "\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)')");
+    }
+
+    private static String attrValue(Pattern pattern, String tag) {
+        Matcher m = pattern.matcher(tag);
+        if (!m.find()) return null;
+        return m.group(1) != null ? m.group(1) : m.group(2);
+    }
+
+    private static String metaDescription(String head) {
+        String fallback = null;
+        Matcher tags = META_TAG.matcher(head);
+        while (tags.find()) {
+            String tag = tags.group();
+            String key = attrValue(ATTR_PROPERTY, tag);
+            if (key == null) key = attrValue(ATTR_NAME, tag);
+            String content = attrValue(ATTR_CONTENT, tag);
+            if (key == null || content == null || content.isBlank()) continue;
+
+            key = key.toLowerCase();
+            if (key.equals("og:description")) return content;
+            if (fallback == null
+                    && (key.equals("description") || key.equals("twitter:description"))) {
+                fallback = content;
+            }
+        }
+        return fallback;
     }
 
     @Scheduled(initialDelayString = "PT10S", fixedDelayString = "PT30M")
@@ -175,6 +221,11 @@ public class FeedScanService {
         CompletableFuture.runAsync(this::runScan);
         return new ScanRequestResult(Outcome.STARTED, 0);
     }
+
+    public record PageMeta(String image, String description) {
+        static final PageMeta EMPTY = new PageMeta(null, null);
+    }
+
 
     private void runScan() {
         pageFetchesThisScan.set(0);
@@ -242,16 +293,27 @@ public class FeedScanService {
         if (articleRepository.existsByUrlHash(hash)) return false;
 
         String image = extractImageUrl(entry);
-        if (image == null && pageFetchesThisScan.incrementAndGet() <= MAX_PAGE_FETCHES_PER_SCAN) {
-            image = fetchOgImage(link);
+        String summary = truncate(stripHtml(extractSummary(entry)), MAX_SUMMARY_LENGTH);
+
+        boolean needsImage = image == null;
+        boolean needsSummary = !isUsefulSummary(summary);
+
+        if ((needsImage || needsSummary)
+                && pageFetchesThisScan.incrementAndGet() <= MAX_PAGE_FETCHES_PER_SCAN) {
+            PageMeta meta = fetchPageMeta(link);
+            if (needsImage) image = meta.image();
+            if (needsSummary) {
+                summary = truncate(stripHtml(meta.description()), MAX_SUMMARY_LENGTH);
+            }
         }
+        if (!isUsefulSummary(summary)) summary = null;
 
         Article article = new Article(
                 feed,
                 truncate(title, 512),
                 link,
                 hash,
-                truncate(stripHtml(extractSummary(entry)), MAX_SUMMARY_LENGTH),
+                summary,
                 image,
                 extractDate(entry)
         );
@@ -316,19 +378,6 @@ public class FeedScanService {
         return date == null ? null : LocalDateTime.ofInstant(date.toInstant(), ZoneOffset.UTC);
     }
 
-    private static String stripHtml(String s) {
-        if (s == null) return null;
-        String cleaned = s.replaceAll("(?s)<[^>]*>", " ")
-                .replace("&nbsp;", " ")
-                .replace("&amp;", "&")
-                .replace("&lt;", "<")
-                .replace("&gt;", ">")
-                .replace("&quot;", "\"")
-                .replace("&#39;", "'")
-                .replaceAll("\\s+", " ")
-                .trim();
-        return cleaned.isEmpty() ? null : cleaned;
-    }
 
     private static String truncate(String s, int max) {
         if (s == null || s.length() <= max) return s;
@@ -343,4 +392,46 @@ public class FeedScanService {
             throw new IllegalStateException(e);
         }
     }
+
+    private static boolean isUsefulSummary(String s) {
+        return s != null && s.length() >= MIN_USEFUL_SUMMARY_LENGTH;
+    }
+
+    private static String decodeNumericEntities(String s) {
+        Matcher m = NUMERIC_ENTITY.matcher(s);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            String num = m.group(1);
+            String replacement = " ";
+            try {
+                int codePoint = (num.charAt(0) == 'x' || num.charAt(0) == 'X')
+                        ? Integer.parseInt(num.substring(1), 16)
+                        : Integer.parseInt(num);
+                if (Character.isValidCodePoint(codePoint)) {
+                    replacement = new String(Character.toChars(codePoint));
+                }
+            } catch (NumberFormatException ignored) {
+                // leave the space
+            }
+            m.appendReplacement(out, Matcher.quoteReplacement(replacement));
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    private static String stripHtml(String s) {
+        if (s == null) return null;
+        String cleaned = decodeNumericEntities(s.replaceAll("(?s)<[^>]*>", " "))
+                .replace('\u00A0', ' ')
+                .replace("&nbsp;", " ")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&apos;", "'")
+                .replace("&amp;", "&")
+                .replaceAll("\\s+", " ")
+                .trim();
+        return cleaned.isEmpty() ? null : cleaned;
+    }
+
 }

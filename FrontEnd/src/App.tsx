@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ArticleCard from "./components/ArticleCard.tsx";
+import About from "./components/About.tsx";
+
+type Tab = "feed" | "about";
 
 type Article = {
     id: number;
@@ -18,7 +21,6 @@ type Feed = {
     homepageUrl: string;
 };
 
-type Tab = "articles" | "sources";
 
 const POLL_INTERVAL_MS = 3000;
 const POLL_ATTEMPTS = 8;
@@ -26,14 +28,18 @@ const POLL_ATTEMPTS = 8;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function App() {
-    const [tab, setTab] = useState<Tab>("articles");
     const [articles, setArticles] = useState<Article[]>([]);
     const [feeds, setFeeds] = useState<Feed[]>([]);
     const [scanning, setScanning] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
+    const [tab, setTab] = useState<Tab>("feed");
+    const [sourcesOpen, setSourcesOpen] = useState(false);
     const [safeMode, setSafeMode] = useState<boolean>(
         () => localStorage.getItem("safeMode") !== "false"
     );
+
+
+
 
     useEffect(() => {
         localStorage.setItem("safeMode", String(safeMode));
@@ -59,6 +65,13 @@ export default function App() {
         }
         setFeeds(await response.json());
     }, []);
+
+    useEffect(() => {
+        if (sourcesOpen && feeds.length === 0) {
+            loadFeeds().catch(() => setNotice("Couldn't load sources."));
+        }
+    }, [sourcesOpen, feeds.length, loadFeeds]);
+
 
     useEffect(() => {
         loadArticles().catch((e) =>
@@ -104,6 +117,20 @@ export default function App() {
 
     return (
         <main className="app-shell">
+            <nav className="topbar" aria-label="Sections">
+                <div className="topbar__links">
+                    <button type="button" className="topbar__link"
+                            aria-current={tab === "feed" ? "page" : undefined}
+                            onClick={() => setTab("feed")}>Feed</button>
+                    <button type="button" className="topbar__link"
+                            aria-current={tab === "about" ? "page" : undefined}
+                            onClick={() => setTab("about")}>About</button>
+                </div>
+                <button type="button" className="filter-toggle" aria-pressed={safeMode}
+                        onClick={() => setSafeMode((v) => !v)}>
+                    18+ filter: {safeMode ? "On" : "Off"}
+                </button>
+            </nav>
             <header className="hero">
                 <div className="hero_brand">
                     <img
@@ -130,71 +157,65 @@ export default function App() {
                     {notice ?? "Discover something worth reading."}
                 </p>
 
-                <nav aria-label="Sections">
-                    <button type="button" onClick={() => setTab("articles")} disabled={tab === "articles"}>
-                        Articles
-                    </button>
-                    <button type="button" onClick={() => setTab("sources")} disabled={tab === "sources"}>
-                        Sources
-                    </button>
-                    <button
-                        type="button"
-                        className="filter-toggle"
-                        aria-pressed={safeMode}
-                        onClick={() => setSafeMode((v) => !v)}
-                    >
-                        18+ filter: {safeMode ? "On" : "Off"}
-                    </button>
-                </nav>
             </header>
 
-            {tab === "articles" ? (
-                <section className="article-grid" aria-label="Suggested articles">
-                    {articles.length === 0 && !scanning && (
-                        <p>No articles yet. The first scan runs shortly after the server starts, or press the button.</p>
-                    )}
-                    {articles.map((article) => (
-                        <ArticleCard
-                            key={article.id}
-                            title={article.title}
-                            description={article.summary}
-                            imageUrl={article.imageUrl}
-                            url={article.url}
-                        />
-                    ))}
-                </section>
-            ) : (
-                <section aria-label="Sources">
-                    {sortedFeeds.length > 0 && (
-                        <div className="source-table-wrapper">
-                            <table className="source-table">
-                                <thead>
-                                <tr>
-                                    <th scope="col">Source</th>
-                                    <th scope="col">Link</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {sortedFeeds.map((feed) => (
-                                    <tr key={feed.id}>
-                                        <td className="source-table__name">{feed.title}</td>
-                                        <td>
-                                            <a
-                                                className="source-table__link"
-                                                href={feed.homepageUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                            >
-                                                Check source →
-                                            </a>
-                                        </td>
+            {tab === "feed" ? (
+                <>
+                    <details
+                        className="sources"
+                        open={sourcesOpen}
+                        onToggle={(e) => setSourcesOpen(e.currentTarget.open)}
+                    >
+                        <summary>Sources ({feeds.length || "…"})</summary>
+
+                        {sortedFeeds.length > 0 && (
+                            <div className="source-table-wrapper">
+                                <table className="source-table">
+                                    <thead>
+                                    <tr>
+                                        <th scope="col">Source</th>
+                                        <th scope="col">Link</th>
                                     </tr>
-                                ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </section>
+                                    </thead>
+                                    <tbody>
+                                    {sortedFeeds.map((feed) => (
+                                        <tr key={feed.id}>
+                                            <td className="source-table__name">{feed.title}</td>
+                                            <td>
+                                                <a
+                                                    className="source-table__link"
+                                                    href={feed.homepageUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    Check source →
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </details>
+
+                    <section className="article-grid" aria-label="Suggested articles">
+                        {articles.length === 0 && !scanning && (
+                            <p>No articles yet. The first scan runs shortly after the server starts, or press the button.</p>
+                        )}
+                        {articles.map((article) => (
+                            <ArticleCard
+                                key={article.id}
+                                title={article.title}
+                                description={article.summary}
+                                imageUrl={article.imageUrl}
+                                url={article.url}
+                            />
+                        ))}
+                    </section>
+                </>
+            ) : (
+                <About />
             )}
         </main>
     );

@@ -295,17 +295,23 @@ button {
   color: var(--primary-light);
   border-bottom-color: var(--primary-light);
 }
-
-.sources {
-  max-width: 900px;
+.sources-toggle {
+  display: block;
   margin: 0 auto 24px;
-}
-
-.sources > summary {
-  cursor: pointer;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
   color: var(--primary-light);
   font-weight: 700;
-  text-align: center;
+  font-size: 1rem;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.sources-toggle:focus-visible {
+  outline: 3px solid var(--outline-light);
+  outline-offset: 4px;
 }
 
 .sources[open] > summary {

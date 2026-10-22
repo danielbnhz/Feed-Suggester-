@@ -33,7 +33,7 @@ export default function App() {
     const [scanning, setScanning] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
     const [tab, setTab] = useState<Tab>("feed");
-    const [sourcesOpen, setSourcesOpen] = useState(false);
+    const [showSources, setShowSources] = useState(false);
     const [safeMode, setSafeMode] = useState<boolean>(
         () => localStorage.getItem("safeMode") !== "false"
     );
@@ -67,10 +67,10 @@ export default function App() {
     }, []);
 
     useEffect(() => {
-        if (sourcesOpen && feeds.length === 0) {
+        if (showSources && feeds.length === 0) {
             loadFeeds().catch(() => setNotice("Couldn't load sources."));
         }
-    }, [sourcesOpen, feeds.length, loadFeeds]);
+    }, [showSources, feeds.length, loadFeeds]);
 
 
     useEffect(() => {
@@ -121,7 +121,7 @@ export default function App() {
                 <div className="topbar__links">
                     <button type="button" className="topbar__link"
                             aria-current={tab === "feed" ? "page" : undefined}
-                            onClick={() => setTab("feed")}>Feed</button>
+                            onClick={() => { setTab("feed"); setShowSources(false); }}>Feed</button>
                     <button type="button" className="topbar__link"
                             aria-current={tab === "about" ? "page" : undefined}
                             onClick={() => setTab("about")}>About</button>
@@ -161,14 +161,16 @@ export default function App() {
 
             {tab === "feed" ? (
                 <>
-                    <details
-                        className="sources"
-                        open={sourcesOpen}
-                        onToggle={(e) => setSourcesOpen(e.currentTarget.open)}
+                    <button
+                        type="button"
+                        className="sources-toggle"
+                        onClick={() => setShowSources((v) => !v)}
                     >
-                        <summary>Sources ({feeds.length || "…"})</summary>
+                        {showSources ? "Articles" : "Sources"}
+                    </button>
 
-                        {sortedFeeds.length > 0 && (
+                    {showSources ? (
+                        sortedFeeds.length > 0 ? (
                             <div className="source-table-wrapper">
                                 <table className="source-table">
                                     <thead>
@@ -196,23 +198,25 @@ export default function App() {
                                     </tbody>
                                 </table>
                             </div>
-                        )}
-                    </details>
-
-                    <section className="article-grid" aria-label="Suggested articles">
-                        {articles.length === 0 && !scanning && (
-                            <p>No articles yet. The first scan runs shortly after the server starts, or press the button.</p>
-                        )}
-                        {articles.map((article) => (
-                            <ArticleCard
-                                key={article.id}
-                                title={article.title}
-                                description={article.summary}
-                                imageUrl={article.imageUrl}
-                                url={article.url}
-                            />
-                        ))}
-                    </section>
+                        ) : (
+                            <p>Loading sources…</p>
+                        )
+                    ) : (
+                        <section className="article-grid" aria-label="Suggested articles">
+                            {articles.length === 0 && !scanning && (
+                                <p>No articles yet. The first scan runs shortly after the server starts, or press the button.</p>
+                            )}
+                            {articles.map((article) => (
+                                <ArticleCard
+                                    key={article.id}
+                                    title={article.title}
+                                    description={article.summary}
+                                    imageUrl={article.imageUrl}
+                                    url={article.url}
+                                />
+                            ))}
+                        </section>
+                    )}
                 </>
             ) : (
                 <About />

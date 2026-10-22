@@ -34,4 +34,27 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     int recordImageCheck(@Param("id") Long id,
                          @Param("imageUrl") String imageUrl,
                          @Param("checkedAt") LocalDateTime checkedAt);
+
+
+    @Query("select a from Article a join fetch a.feed "
+            + "where a.sensitivityScore < :threshold "
+            + "order by coalesce(a.publishedAt, a.fetchedAt) desc")
+    List<Article> findLatestSafe(@Param("threshold") int threshold, Pageable pageable);
+
+    interface SensitivityCandidate {
+        Long getId();
+        String getTitle();
+        String getSummary();
+    }
+
+    @Query("select a.id as id, a.title as title, a.summary as summary from Article a "
+            + "where a.sensitivityCheckedAt is null order by a.id")
+    List<SensitivityCandidate> findNeedingSensitivity(Pageable pageable);
+
+    @Modifying
+    @Transactional
+    @Query("update Article a set a.sensitivityScore = :score, a.sensitivityCheckedAt = :checkedAt where a.id = :id")
+    int recordSensitivity(@Param("id") Long id,
+                          @Param("score") int score,
+                          @Param("checkedAt") LocalDateTime checkedAt);
 }

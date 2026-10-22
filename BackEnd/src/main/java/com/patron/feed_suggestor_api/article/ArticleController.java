@@ -21,13 +21,24 @@ public class ArticleController {
         this.scanService = scanService;
     }
 
+    private final SensitivityFilter sensitivityFilter;
+
+    public ArticleController(ArticleRepository articleRepository, FeedScanService scanService,
+                             SensitivityFilter sensitivityFilter) {
+        this.articleRepository = articleRepository;
+        this.scanService = scanService;
+        this.sensitivityFilter = sensitivityFilter;
+    }
+
     @GetMapping
-    public List<ArticleResponse> latest(@RequestParam(defaultValue = "50") int limit) {
+    public List<ArticleResponse> latest(@RequestParam(defaultValue = "50") int limit,
+                                        @RequestParam(defaultValue = "true") boolean safe) {
         int size = Math.min(Math.max(limit, 1), 100);
-        return articleRepository.findLatest(PageRequest.of(0, size))
-                .stream()
-                .map(ArticleResponse::from)
-                .toList();
+        PageRequest page = PageRequest.of(0, size);
+        List<Article> articles = (safe && sensitivityFilter.isEnabled())
+                ? articleRepository.findLatestSafe(sensitivityFilter.getThreshold(), page)
+                : articleRepository.findLatest(page);
+        return articles.stream().map(ArticleResponse::from).toList();
     }
 
     @PostMapping("/scan")

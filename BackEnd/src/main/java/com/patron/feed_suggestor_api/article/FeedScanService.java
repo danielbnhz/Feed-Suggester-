@@ -51,6 +51,7 @@ public class FeedScanService {
     private static final int MAX_PAGE_FETCHES_PER_SCAN = 100;
     private final AtomicInteger pageFetchesThisScan = new AtomicInteger();
     private static final int MIN_USEFUL_SUMMARY_LENGTH = 20;
+    private final SensitivityFilter sensitivityFilter;
 
     private static final Pattern META_TAG = Pattern.compile("(?is)<meta\\b[^>]*>");
     private static final Pattern ATTR_NAME = metaAttr("name");
@@ -84,9 +85,12 @@ public class FeedScanService {
     private final AtomicBoolean scanning = new AtomicBoolean(false);
     private volatile Instant lastScanFinishedAt = Instant.EPOCH;
 
-    public FeedScanService(FeedRepository feedRepository, ArticleRepository articleRepository) {
+    public FeedScanService(FeedRepository feedRepository, ArticleRepository articleRepository,
+                           SensitivityFilter sensitivityFilter) {
         this.feedRepository = feedRepository;
         this.articleRepository = articleRepository;
+        this.sensitivityFilter = sensitivityFilter;
+
     }
 
     boolean isScanning() {
@@ -317,7 +321,9 @@ public class FeedScanService {
                 image,
                 extractDate(entry)
         );
-
+        if (sensitivityFilter.isEnabled()) {
+            article.applySensitivity(sensitivityFilter.score(article.getTitle(), article.getSummary()));
+        }
         articleRepository.save(article);
         return true;
     }

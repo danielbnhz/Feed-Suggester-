@@ -240,3 +240,24 @@ button {
   outline: 3px solid var(--outline-light);
   outline-offset: 4px;
 }
+
+.filter-toggle {
+  margin-left: 12px;
+  padding: 8px 14px;
+  border: 2px solid var(--primary-light);
+  border-radius: 999px;
+  background-color: transparent;
+  color: var(--primary-light);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.filter-toggle[aria-pressed="true"] {
+  background-color: var(--primary-light);
+  color: var(--surface-dark);
+}
+
+.filter-toggle:focus-visible {
+  outline: 3px solid var(--outline-light);
+  outline-offset: 4px;
+}

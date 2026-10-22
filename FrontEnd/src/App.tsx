@@ -31,6 +31,13 @@ export default function App() {
     const [feeds, setFeeds] = useState<Feed[]>([]);
     const [scanning, setScanning] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
+    const [safeMode, setSafeMode] = useState<boolean>(
+        () => localStorage.getItem("safeMode") !== "false"
+    );
+
+    useEffect(() => {
+        localStorage.setItem("safeMode", String(safeMode));
+    }, [safeMode]);
 
     const sortedFeeds = useMemo(
         () => [...feeds].sort((a, b) => a.title.localeCompare(b.title)),
@@ -38,12 +45,12 @@ export default function App() {
     );
 
     const loadArticles = useCallback(async () => {
-        const response = await fetch("/api/articles?limit=60");
+        const response = await fetch(`/api/articles?limit=60&safe=${safeMode}`);
         if (!response.ok) {
             throw new Error(`Server responded with ${response.status}`);
         }
         setArticles(await response.json());
-    }, []);
+    }, [safeMode]);
 
     const loadFeeds = useCallback(async () => {
         const response = await fetch("/api/feeds");
@@ -129,6 +136,14 @@ export default function App() {
                     </button>
                     <button type="button" onClick={() => setTab("sources")} disabled={tab === "sources"}>
                         Sources
+                    </button>
+                    <button
+                        type="button"
+                        className="filter-toggle"
+                        aria-pressed={safeMode}
+                        onClick={() => setSafeMode((v) => !v)}
+                    >
+                        18+ filter: {safeMode ? "On" : "Off"}
                     </button>
                 </nav>
             </header>

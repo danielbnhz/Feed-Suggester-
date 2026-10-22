@@ -1,5 +1,5 @@
 package com.patron.feed_suggestor_api.article;
-
+import java.time.ZoneOffset;
 import com.patron.feed_suggestor_api.feed.Feed;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
@@ -40,6 +40,20 @@ public class Article {
 
     @Column(name = "image_checked_at")
     private LocalDateTime imageCheckedAt;
+
+
+    @Column(name = "sensitivity_score", nullable = false)
+    private int sensitivityScore;
+
+    @Column(name = "sensitivity_checked_at")
+    private LocalDateTime sensitivityCheckedAt;
+
+    public int getSensitivityScore() { return sensitivityScore; }
+
+    public void applySensitivity(int score) {
+        this.sensitivityScore = score;
+        this.sensitivityCheckedAt = LocalDateTime.now(ZoneOffset.UTC);
+    }
 
     public LocalDateTime getImageCheckedAt() { return imageCheckedAt; }
 

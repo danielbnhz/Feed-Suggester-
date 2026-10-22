@@ -16,10 +16,6 @@ public class ArticleController {
     private final ArticleRepository articleRepository;
     private final FeedScanService scanService;
 
-    public ArticleController(ArticleRepository articleRepository, FeedScanService scanService) {
-        this.articleRepository = articleRepository;
-        this.scanService = scanService;
-    }
 
     private final SensitivityFilter sensitivityFilter;
 

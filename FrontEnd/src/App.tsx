@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ArticleCard from "./components/ArticleCard.tsx";
 import About from "./components/About.tsx";
+import { logEvent } from "./events.ts";
 
 type Tab = "feed" | "about";
 
@@ -79,11 +80,7 @@ export default function App() {
         );
     }, [loadArticles]);
 
-    useEffect(() => {
-        if (tab === "sources" && feeds.length === 0) {
-            loadFeeds().catch(() => setNotice("Couldn't load sources."));
-        }
-    }, [tab, feeds.length, loadFeeds]);
+
 
     async function findArticles() {
         setScanning(true);
@@ -189,6 +186,7 @@ export default function App() {
                                                     href={feed.homepageUrl}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
+
                                                 >
                                                     Check source →
                                                 </a>
@@ -213,6 +211,7 @@ export default function App() {
                                     description={article.summary}
                                     imageUrl={article.imageUrl}
                                     url={article.url}
+                                    onOpen={() => logEvent(article.id, "CLICK")}
                                 />
                             ))}
                         </section>

@@ -5,6 +5,8 @@ type ArticleCardProps = {
     description?: string | null;
     imageUrl?: string | null;
     url?: string | null;
+    onOpen?: () => void;
+
 };
 
 const PREVIEW_MAX_CHARS = 80;
@@ -24,6 +26,7 @@ export default function ArticleCard({
                                         description,
                                         imageUrl,
                                         url,
+                                        onOpen,
                                     }: ArticleCardProps) {
     const [imageFailed, setImageFailed] = useState(false);
 
@@ -64,6 +67,8 @@ export default function ArticleCard({
                         href={url}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={onOpen}
+                        onAuxClick={(e) => { if (e.button === 1) onOpen?.(); }}
                     >
                         Read article →
                     </a>

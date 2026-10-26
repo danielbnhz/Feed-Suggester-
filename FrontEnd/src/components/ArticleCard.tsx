@@ -6,6 +6,7 @@ type ArticleCardProps = {
     imageUrl?: string | null;
     url?: string | null;
     onOpen?: () => void;
+    onMoreLikeThis?: () => void;
 
 };
 
@@ -27,6 +28,7 @@ export default function ArticleCard({
                                         imageUrl,
                                         url,
                                         onOpen,
+                                        onMoreLikeThis,
                                     }: ArticleCardProps) {
     const [imageFailed, setImageFailed] = useState(false);
 
@@ -76,6 +78,16 @@ export default function ArticleCard({
                     <span className="article-card__pending">
                         Article link will appear here
                     </span>
+
+                )}
+                {onMoreLikeThis && (
+                    <button
+                        type="button"
+                        className="article-card__preference"
+                        onClick={onMoreLikeThis}
+                    >
+                        More like this
+                    </button>
                 )}
             </div>
         </article>

@@ -1,4 +1,4 @@
-export type EventType = "CLICK";
+export type EventType = "CLICK" | "MORE_LIKE_THIS";
 
 export function logEvent(articleId: number, type: EventType): void {
     fetch("/api/events", {

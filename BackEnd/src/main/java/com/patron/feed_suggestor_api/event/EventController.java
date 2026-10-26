@@ -39,6 +39,11 @@ public class EventController {
             return ResponseEntity.notFound().build();
         }
         UUID clientId = clientIdResolver.resolve(request, response);
+        if (req.type() == EventType.MORE_LIKE_THIS
+                && eventRepository.existsByClientIdAndArticle_IdAndEventType(
+                clientId, req.articleId(), req.type())) {
+            return ResponseEntity.noContent().build();
+        }
         eventRepository.save(new ArticleEvent(clientId, article, req.type()));
         return ResponseEntity.noContent().build();
     }

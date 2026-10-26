@@ -342,3 +342,37 @@ button {
   font-weight: 700;
   text-underline-offset: 4px;
 }
+
+
+
+.article-card__preference {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 9px 14px;
+
+  border: 2px solid var(--primary-light);
+  border-radius: 8px;
+
+  background-color: #003b80;
+  color: var(--primary-light);
+
+  font-weight: 700;
+  cursor: pointer;
+
+  transition:
+          background-color 0.2s ease,
+          transform 0.15s ease;
+}
+
+.article-card__preference:hover {
+  background-color: #d4e8fa;
+}
+
+.article-card__preference:active {
+  transform: scale(0.97);
+}
+
+.article-card__preference:focus-visible {
+  outline: 3px solid var(--outline-light);
+  outline-offset: 4px;
+}

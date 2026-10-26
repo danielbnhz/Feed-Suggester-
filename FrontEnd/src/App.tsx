@@ -212,6 +212,7 @@ export default function App() {
                                     imageUrl={article.imageUrl}
                                     url={article.url}
                                     onOpen={() => logEvent(article.id, "CLICK")}
+                                    onMoreLikeThis={() => logEvent(article.id, "MORE_LIKE_THIS")}
                                 />
                             ))}
                         </section>
